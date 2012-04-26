@@ -22,7 +22,8 @@ class Event:
                  university=None,
                  signup=None,
                  abstract=None,
-                 bio=None):
+                 bio=None,
+                 host=None):
         self.date = date
         self.coffee = coffee
         self.location = location
@@ -49,7 +50,7 @@ class Event:
                     return True
         return False
     def __str__(self):
-        data = [str(self.date), self.coffee, self.location, self.speaker, self.title,
+        data = [str(self.date), str(self.coffee), self.location, self.speaker, self.title,
                 self.website, self.university, self.signup, self.abstract, self.bio]
         return '\n\n'.join(data)
 
