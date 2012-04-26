@@ -26,7 +26,7 @@ try:
     from xml.etree import ElementTree # for Python 2.5 users
 except ImportError:
     from elementtree import ElementTree
-import gdata.calendar.service
+import gdata.calendar.client
 import gdata.service
 import atom.service
 import gdata.calendar
@@ -44,35 +44,6 @@ __author__ = "Igor Karpov (ikarpov@cs.utexas.edu)"
 __version__ = "1.0.0"
 __date__ = "2008/09/09"
 
-def GetAuthSubUrl():
-    """
-    Return the URL that will authenticate the user with a Google account 
-    and drop them back to the site designated by 'next'
-    """
-    next = 'http://steam.csres.utexas.edu/~ikarpov/'
-    scope = 'http://www.google.com/calendar/feeds/'
-    secure = False
-    session = True
-    calendar_service = gdata.calendar.service.CalendarService()
-    return calendar_service.GenerateAuthSubURL(next, scope, secure, session);
-
-def GetAuthSubToken():
-    """
-    get authentication subsystem token from the URL parameter
-    """
-    parameters = cgi.FieldStorage()
-    authsub_token = parameters['token']
-
-def UpgradeToSession():
-    """
-    upgrade authentication subsystem token to calendar session token
-    return the authenticated session
-    """
-    calendar_service = gdata.calendar.service.CalendarService()
-    calendar_service.auth_token = authsub_token
-    calendar_service.UpgradeToSessionToken()
-    return calendar_service
-
 def ProgrammaticLogin(email = None, password = None):
     """
     programmatically login to a Google Calendar account and return the 
@@ -82,15 +53,12 @@ def ProgrammaticLogin(email = None, password = None):
         email = raw_input("Google Calendar account email: ")
     if not password:
         password = getpass.getpass("Google Calendar account password: ")
-    calendar_service = gdata.calendar.service.CalendarService()
-    calendar_service.email = email
-    calendar_service.password = password
-    calendar_service.source = ''
-    calendar_service.ProgrammaticLogin()
-    return calendar_service
+    client = gdata.calendar.client.CalendarClient(source='edu.utexas.cs.ai-lab.fai.gcal')
+    client.ClientLogin(email=email, password=password, source=client.source)
+    return client
 
-def PrintAllEventsOnDefaultCalendar(calendar_service):
-    feed = calendar_service.GetCalendarEventFeed()
+def PrintAllEventsOnDefaultCalendar(calendar_client):
+    feed = calendar_client.GetCalendarEventFeed()
     print 'Events on Primary Calendar: %s' % (feed.title.text,)
     for i, an_event in enumerate(feed.entry):
         print '\t%s. %s' % (i, an_event.title.text,)
@@ -98,62 +66,59 @@ def PrintAllEventsOnDefaultCalendar(calendar_service):
             print '\t    starts: %s' % a_when.start_time
             print '\t    ends: %s' % a_when.end_time
 
-def InsertSingleEvent(calendar_service, calendar=None, title='TEST EVENT', 
-                      content='TEST CONTENT', where='TEST LOCATION', 
+def InsertSingleEvent(calendar_client, calendar=None, title='TEST EVENT',
+                      content='TEST CONTENT', where='TEST LOCATION',
                       start_time=None, end_time=None):
-    event = gdata.calendar.CalendarEventEntry()
-    event.title = atom.Title(text=title)
-    event.content = atom.Content(text=content)
-    event.where.append(gdata.calendar.Where(value_string=where))
+    event = gdata.calendar.data.CalendarEventEntry()
+    event.title = atom.data.Title(text=title)
+    event.content = atom.data.Content(text=content)
+    event.where.append(gdata.calendar.data.CalendarWhere(value=where))
 
     if start_time is None:
         # Use current time for the start_time and have the event last 1 hour
         start_time = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime())
         end_time = time.strftime('%Y-%m-%dT%H:%M:%S.000Z', time.gmtime(time.time() + 3600))
-    event.when.append(gdata.calendar.When(start_time=start_time, end_time=end_time))
+    event.when.append(gdata.data.When(start=start_time, end=end_time))
     cal = '/calendar/feeds/default/private/full'
     if calendar is not None:
         cal = calendar
-    new_event = calendar_service.InsertEvent(event, cal)
-    
+    print cal
+    new_event = calendar_client.InsertEvent(event, cal)
     return new_event
 
-def SelectCalendar(calendar_service):
+def SelectCalendar(calendar_client):
     """
     Ask the user which calendar they want to use and return that calendar's URI
     """
-    feed = calendar_service.GetOwnCalendarsFeed()
+    feed = calendar_client.GetOwnCalendarsFeed()
     print feed.title.text
     for i, a_cal in enumerate(feed.entry):
         print '\t%d) %s' % (i, a_cal.title.text)
     c = int(raw_input('Which calendar? '))
     cal = feed.entry[c]
-    id = urllib.unquote(cal.id.text.split('/').pop())
-    return id
+    return cal.content.src
 
-def CalendarURIFromID(id):
-    return "/calendar/feeds/"+ id +"/private/full"
-
-def DateRangeQuery(calendar_service, 
+def DateRangeQuery(calendar_client,
                    calendar_id='default',
                    start_date=datetime.today().strftime('%Y-%m-%dT%H:%M:%S.000%Z'),
                    end_date=datetime.today().strftime('%Y-%m-%dT%H:%M:%S.000%Z')):
-    query = gdata.calendar.service.CalendarEventQuery(calendar_id, 'private', 'full')
+    query = gdata.calendar.client.CalendarEventQuery(calendar_id, 'private', 'full')
     query.start_min = start_date
     query.start_max = end_date
-    feed = calendar_service.CalendarQuery(query)
+    feed = calendar_client.CalendarQuery(q=query)
     return feed.entry
 
-def FullTextQuery(calendar_service, calendar_id, text_query):
-    query = gdata.calendar.service.CalendarEventQuery(calendar_id, 'private', 'full', text_query)
-    feed = calendar_service.CalendarQuery(query)
+def FullTextQuery(calendar_client, calendar_id, text_query):
+    query = gdata.calendar.client.CalendarEventQuery(text_query=text_query)
+    print calendar_id
+    feed = calendar_client.GetCalendarEventFeed(uri=calendar_id, q=query)
     return feed.entry
 
 def Main():
-    calendar_service = ProgrammaticLogin()
-    #PrintAllEventsOnDefaultCalendar(calendar_service)
-    calendar = CalendarURIFromID(SelectCalendar(calendar_service))
-    InsertSingleEvent(calendar_service, calendar=calendar)
+    calendar_client = ProgrammaticLogin()
+    #PrintAllEventsOnDefaultCalendar(calendar_client)
+    calendar = SelectCalendar(calendar_client)
+    InsertSingleEvent(calendar_client, calendar=calendar)
 
 if __name__ == "__main__":
     Main()

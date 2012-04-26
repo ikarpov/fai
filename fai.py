@@ -52,7 +52,7 @@ class Event:
         data = [str(self.date), self.coffee, self.location, self.speaker, self.title,
                 self.website, self.university, self.signup, self.abstract, self.bio]
         return '\n\n'.join(data)
-    
+
 def read_event(file):
     (date, coffee, location, title, speaker, website, university, signup, abstract, bio) = open(file).read().replace('XXX','').split('\n\n')[:NUM_FIELDS]
     if date:
@@ -92,15 +92,16 @@ def main():
         for overlapping_event in overlapping_events:
             print 'deleting:', overlapping_event.title.text
             try:
-                calendar_service.DeleteEvent(overlapping_event.GetEditLink().href)
+                calendar_service.Delete(overlapping_event)
             except Exception, e:
                 print "Google is being mean to FAI, waiting 30 s"
                 sleep(30)
-                calendar_service.DeleteEvent(overlapping_event.GetEditLink().href)
+                calendar_service.Delete(overlapping_event)
         print 'adding:', event.subject()
         try:
-            gcal.InsertSingleEvent(calendar_service, 
-                               calendar=gcal.CalendarURIFromID(calendar_id),
+            print event.location
+            gcal.InsertSingleEvent(calendar_service,
+                               calendar=calendar_id,
                                title = event.subject(),
                                content=event.description(),
                                where = event.location,
@@ -109,8 +110,8 @@ def main():
         except Exception, e:
                 print "Google is being mean to FAI, waiting 30 s"
                 sleep(30)
-                gcal.InsertSingleEvent(calendar_service, 
-                               calendar=gcal.CalendarURIFromID(calendar_id),
+                gcal.InsertSingleEvent(calendar_service,
+                               calendar=calendar_id,
                                title = event.subject(),
                                content=event.description(),
                                where = event.location,
